@@ -1,6 +1,7 @@
 import search
 import random
 import math
+from itertools import product
 
 
 ids = ["111111111", "111111111"]
@@ -91,6 +92,7 @@ class OnePieceProblem(search.Problem):
         actions = []
         for ship in state.pirate_ships:
             actions.append(self.atomic_actions((ship, state.pirate_ships[ship]), state))
+        return list(product(*actions))
 
     def result(self, state, action):
         """Return the state that results from executing the given
