@@ -148,7 +148,18 @@ def astar_search(problem, h=None):
     # Function to calculate f(n) = g(n) + h(n)
     # Memoize this function for better performance
     f = memoize(lambda n: n.path_cost + h(n), 'f')
-
-    # TODO: Implement the rest of the A* search algorithm
-
+    expanded = PriorityQueue(f=f)
+    expanded.append(Node(problem.initial))
+    seen = set()
+    dist = {}
+    while len(expanded) > 0:
+        node = expanded.pop()
+        if node.state not in seen or node.depth < dist[node.state]:
+            seen.add(node.state)
+            dist[node.state] = node.depth
+            if problem.goal_test(node.state):
+                return node
+            for child in node.expand(problem):
+                if f(child) < float('inf'):
+                    expanded.append(child)
     return None

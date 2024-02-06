@@ -8,7 +8,7 @@ import copy
 ids = ["111111111", "111111111"]
 
 class OnePieceState:
-    def __init__(self, pirate_ships, marine_ships, treasures_in_base):
+    def __init__(self, pirate_ships: dict[str: ], marine_ships, treasures_in_base):
         self.pirate_ships = pirate_ships
         self.marine_ships = marine_ships
         self.treasures_in_base = treasures_in_base
@@ -49,6 +49,11 @@ class OnePieceProblem(search.Problem):
         self.treasures = initial["treasures"]
         self.initial_marine_ships = initial["marine_ships"]
         self.marine_ships = self.initial_marine_ships
+
+        for i in range(len(self.map)):
+            for j in range(len(self.map[0])):
+                if self.map[i][j] == "B":
+                    self.base = (i, j)
 
     def atomic_actions(self, ship):
         """
@@ -153,12 +158,52 @@ class OnePieceProblem(search.Problem):
     def goal_test(self, state):
         """ Given a state, checks if this is the goal state.
          Returns True if it is, False otherwise."""
+        return len(state.treasures_in_base) == len(self.treasures)
 
     def h(self, node):
         """ This is the heuristic. It gets a node (not a state,
         state can be accessed via node.state)
         and returns a goal distance estimate"""
         return 0
+
+    def h_1(self, node):
+        uncollected_treasures = len(self.treasures) - len(node.state.treasures_in_base)
+        return uncollected_treasures / len(self.pirate_ships)
+
+    def h_2(self, node):
+        treasure_locations = {treasure: self.get_treasure_distance(loc) for treasure, loc in self.treasures.items()}
+
+        for ship in node.state.pirate_ships.values():
+            if len(ship[1]) == 0:
+                continue
+            ship_distance = self.get_treasure_distance(ship[0])
+            for treasure in ship[1]:
+                treasure_locations[treasure] = min(treasure_locations[treasure], ship_distance)
+
+        return sum(treasure_locations.values())/len(self.pirate_ships)
+
+    def get_treasure_distance(self, location):
+        legal_indexes = self.legal_indexes(location)
+        if len(legal_indexes) == 0:
+            return math.inf
+        return min([self.l1_distance(self.base, index) for index in legal_indexes])
+
+    def legal_indexes(self, loc):
+        indexes = []
+        if loc[0] + 1 < len(self.map) and self.map[loc[0] + 1][loc[1]] != "I":
+            indexes.append((loc[0] + 1, loc[1]))
+        if loc[0] - 1 >= 0 and self.map[loc[0 - 1]][loc[1]] != "I":
+            indexes.append((loc[0] - 1, loc[1]))
+        if loc[1] + 1 < len(self.map[0]) and self.map[loc[0]][loc[1] + 1] != "I":
+            indexes.append((loc[0], loc[1] + 1))
+        if loc[1] - 1 >= 0 and self.map[loc[0]][loc[1 - 1]] != "I":
+            indexes.append((loc[0], loc[1] - 1))
+        return indexes
+
+    def l1_distance(self, loc1, loc2):
+        return abs(loc1[0]-loc2[0]) + abs(loc1[1]-loc2[1])
+
+
 
     """Feel free to add your own functions
     (-2, -2, None) means there was a timeout"""
