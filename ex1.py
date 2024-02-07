@@ -7,14 +7,15 @@ import copy
 
 ids = ["111111111", "111111111"]
 
+
 class OnePieceState:
-    def __init__(self, pirate_ships: dict[str: ], marine_ships, treasures_in_base):
+    def __init__(self, pirate_ships, marine_ships, treasures_in_base):
         self.pirate_ships = pirate_ships
         self.marine_ships = marine_ships
         self.treasures_in_base = treasures_in_base
 
     def __eq__(self, other):
-        return self.pirate_ships == other.pirate_ships  and self.marine_ships == other.marine_ships
+        return self.pirate_ships == other.pirate_ships and self.marine_ships == other.marine_ships
 
     def __hash__(self):
         return hash((self.pirate_ships, self.marine_ships, self.treasures_in_base))
@@ -28,8 +29,11 @@ class OnePieceState:
                f"treasures in base: {self.treasures_in_base}"
 
     def __deepcopy__(self, memodict={}):
-        return OnePieceState(copy.deepcopy(self.pirate_ships),copy.deepcopy(self.marine_ships),
+        return OnePieceState(copy.deepcopy(self.pirate_ships), copy.deepcopy(self.marine_ships),
                              copy.deepcopy(self.treasures_in_base))
+
+    def to_tuple(self):
+        pirate_ships = tuple((ship, tuple(values[0]), tuple(values[1])) for ship, values in self.pirate_ships.items())
 
 
 class OnePieceProblem(search.Problem):
@@ -48,7 +52,7 @@ class OnePieceProblem(search.Problem):
         self.pirate_ships = initial["pirate_ships"]
         self.treasures = initial["treasures"]
         self.initial_marine_ships = initial["marine_ships"]
-        self.marine_ships = self.initial_marine_ships
+        self.marine_ships = copy.deepcopy(self.initial_marine_ships)
 
         for i in range(len(self.map)):
             for j in range(len(self.map[0])):
@@ -200,16 +204,14 @@ class OnePieceProblem(search.Problem):
             indexes.append((loc[0], loc[1] - 1))
         return indexes
 
-    def l1_distance(self, loc1, loc2):
+    @staticmethod
+    def l1_distance(loc1, loc2):
         return abs(loc1[0]-loc2[0]) + abs(loc1[1]-loc2[1])
 
 
-
-    """Feel free to add your own functions
-    (-2, -2, None) means there was a timeout"""
-
+"""Feel free to add your own functions
+(-2, -2, None) means there was a timeout"""
 
 
 def create_onepiece_problem(game):
     return OnePieceProblem(game)
-
