@@ -97,8 +97,8 @@ class Node:
     def __repr__(self):
         return "<Node {}>".format(self.state)
 
-    # def __lt__(self, node):
-    #     return self.state < node.state
+    def __lt__(self, node):
+        return True
 
     def expand(self, problem):
         """List the nodes reachable in one step from this node."""
@@ -144,7 +144,6 @@ def astar_search(problem, h=None):
     else in your Problem subclass."""
     # Memoize the heuristic function for better performance
     h = memoize(h or problem.h, 'h')
-
     # Function to calculate f(n) = g(n) + h(n)
     # Memoize this function for better performance
     f = memoize(lambda n: n.path_cost + h(n), 'f')
