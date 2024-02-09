@@ -179,7 +179,7 @@ class OnePieceProblem(search.Problem):
         """ This is the heuristic. It gets a node (not a state,
         state can be accessed via [node.state]
         and returns a goal distance estimate"""
-        return 0
+        return self.h_2(node)
 
     def h_1(self, node):
         uncollected_treasures = len(self.treasures) - len(node.state.treasures_in_base)
@@ -187,7 +187,8 @@ class OnePieceProblem(search.Problem):
 
     def h_2(self, node):
         treasure_locations = {treasure: self.get_treasure_distance(loc) for treasure, loc in self.treasures.items()}
-
+        print(treasure_locations)
+        print(self.map)
         for ship in node.state.pirate_ships.values():
             if len(ship[1]) == 0:
                 continue
@@ -198,22 +199,20 @@ class OnePieceProblem(search.Problem):
         return sum(treasure_locations.values())/len(self.pirate_ships)
 
     def get_treasure_distance(self, location):
+        print(location)
         legal_indexes = self.legal_indexes(location)
         if len(legal_indexes) == 0:
             return math.inf
+        print([self.l1_distance(location, index) for index in legal_indexes])
         return min([self.l1_distance(self.base, index) for index in legal_indexes])
 
-    def legal_indexes(self, loc):
-        indexes = []
+    def legal_indexes(self, loc, ship=False):
+        if ship:
+            return [loc]
+        legal = []
         if loc[0] + 1 < len(self.map) and self.map[loc[0] + 1][loc[1]] != "I":
-            indexes.append((loc[0] + 1, loc[1]))
-        if loc[0] - 1 >= 0 and self.map[loc[0 - 1]][loc[1]] != "I":
-            indexes.append((loc[0] - 1, loc[1]))
-        if loc[1] + 1 < len(self.map[0]) and self.map[loc[0]][loc[1] + 1] != "I":
-            indexes.append((loc[0], loc[1] + 1))
-        if loc[1] - 1 >= 0 and self.map[loc[0]][loc[1 - 1]] != "I":
-            indexes.append((loc[0], loc[1] - 1))
-        return indexes
+            legal.append((loc[0] + 1, loc[1]))
+        if loc[0] - 1 >= 0 and self.map[loc[0] - 1][loc[1]] != "I":
 
     @staticmethod
     def l1_distance(loc1, loc2):
