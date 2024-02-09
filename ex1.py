@@ -1,5 +1,4 @@
 import search
-import random
 import math
 from itertools import product
 import copy
@@ -9,16 +8,17 @@ ids = ["111111111", "111111111"]
 
 
 class OnePieceState:
-    def __init__(self, pirate_ships, marine_ships, treasures_in_base):
+    def __init__(self, pirate_ships: dict[str: list[tuple[int, int], set]], marine_ships, treasures_in_base):
         self.pirate_ships = pirate_ships
         self.marine_ships = marine_ships
         self.treasures_in_base = treasures_in_base
+        self.tuple = self.to_tuple()
 
     def __eq__(self, other):
         return self.pirate_ships == other.pirate_ships and self.marine_ships == other.marine_ships
 
     def __hash__(self):
-        return hash((self.pirate_ships, self.marine_ships, self.treasures_in_base))
+        return hash(self.tuple)
 
     def __str__(self):
         return f"Pirate ships: {self.pirate_ships}, Marine ships: {self.marine_ships}, " \
@@ -34,6 +34,9 @@ class OnePieceState:
 
     def to_tuple(self):
         pirate_ships = tuple((ship, tuple(values[0]), tuple(values[1])) for ship, values in self.pirate_ships.items())
+        marine_ships = tuple((ship, tuple(values)) for ship, values in self.marine_ships.items())
+        treasures_in_base = tuple(self.treasures_in_base)
+        return pirate_ships, marine_ships, treasures_in_base
 
 
 class OnePieceProblem(search.Problem):
@@ -63,7 +66,6 @@ class OnePieceProblem(search.Problem):
         """
         Returns all the atomic actions that can be executed by a ship
         :param ship: should be a tuple (ship_name, (x, y), set of treasures)
-        :param state: should be a OnePieceState object
         """
         actions = [("sail", ship[0], (ship[1][0] + 1, ship[1][1])), ("sail", ship[0], (ship[1][0] - 1, ship[1][1])),
                    ("sail", ship[0], (ship[1][0], ship[1][1] + 1)), ("sail", ship[0], (ship[1][0], ship[1][1] - 1))]
@@ -89,7 +91,6 @@ class OnePieceProblem(search.Problem):
         """
         Checks if the ship can collect a treasure
         :param ship: should be a tuple (ship_name, (x, y), set of treasures)
-        :param state: the current state (OnePieceState object)
         """
         if len(ship[2]) == 2:
             return False
@@ -118,7 +119,6 @@ class OnePieceProblem(search.Problem):
         """
         Checks if the ship can deposit a treasure
         :param ship: should be a tuple (ship_name, (x, y))
-        :param state: the current state (OnePieceState object)
         """
         return self.map[ship[1][0]][ship[1][1]] == "B"
 
@@ -157,7 +157,8 @@ class OnePieceProblem(search.Problem):
             if cur_index == len(self.marine_ships[ship])-1:
                 cur_index = 0
                 self.marine_ships[ship] = self.marine_ships[ship][::-1]
-            state.marine_ships[ship] = self.marine_ships[ship][self.marine_ships[cur_index]+1]
+            print(self.marine_ships[ship])
+            state.marine_ships[ship] = self.marine_ships[ship][cur_index+1]
 
     def goal_test(self, state):
         """ Given a state, checks if this is the goal state.
@@ -166,7 +167,7 @@ class OnePieceProblem(search.Problem):
 
     def h(self, node):
         """ This is the heuristic. It gets a node (not a state,
-        state can be accessed via node.state)
+        state can be accessed via [node.state]
         and returns a goal distance estimate"""
         return 0
 

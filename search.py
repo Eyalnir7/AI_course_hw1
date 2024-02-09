@@ -157,6 +157,7 @@ def astar_search(problem, h=None):
         if node.state not in seen or node.depth < dist[node.state]:
             seen.add(node.state)
             dist[node.state] = node.depth
+            print('HERE:', node.state)
             if problem.goal_test(node.state):
                 return node
             for child in node.expand(problem):
