@@ -54,6 +54,7 @@ class OnePieceProblem(search.Problem):
         self.map = initial["map"]
         self.pirate_ships = initial["pirate_ships"]
         self.treasures = initial["treasures"]
+        self.opposite_treasures = {value: key for key, value in self.treasures.items()}
         self.initial_marine_ships = initial["marine_ships"]
         self.marine_ships = copy.deepcopy(self.initial_marine_ships)
 
@@ -62,24 +63,31 @@ class OnePieceProblem(search.Problem):
                 if self.map[i][j] == "B":
                     self.base = (i, j)
 
+        for i in self.opposite_treasures:
+            if self.map[i[0]][i[1]] != "I":
+                raise ValueError("Treasure is not on island")
+
     def atomic_actions(self, ship):
         """
         Returns all the atomic actions that can be executed by a ship
         :param ship: should be a tuple (ship_name, (x, y), set of treasures)
         """
-        actions = [("sail", ship[0], (ship[1][0] + 1, ship[1][1])), ("sail", ship[0], (ship[1][0] - 1, ship[1][1])),
+        possible = [("sail", ship[0], (ship[1][0] + 1, ship[1][1])), ("sail", ship[0], (ship[1][0] - 1, ship[1][1])),
                    ("sail", ship[0], (ship[1][0], ship[1][1] + 1)), ("sail", ship[0], (ship[1][0], ship[1][1] - 1))]
+
+        actions = []
         # sails actions
-        for action in actions:
-            if not self.check_sail(action):
-                actions.remove(action)
+        for action in possible:
+            if self.check_sail(action):
+                actions.append(action)
 
         # wait action
         actions.append(("wait", ship[0]))
 
         # collect treasure action
-        if self.check_collect_treasure(ship):
-            actions.append(("collect_treasure", ship[0]))
+        treasure = self.check_collect_treasure(ship)
+        if treasure:
+            actions.append(("collect_treasure", ship[0], treasure))
 
         # deposit treasure action
         if self.check_deposit_treasure(ship):
@@ -92,16 +100,16 @@ class OnePieceProblem(search.Problem):
         Checks if the ship can collect a treasure
         :param ship: should be a tuple (ship_name, (x, y), set of treasures)
         """
-        if len(ship[2]) == 2:
+        if len(ship[2]) >= 2:
             return False
-        if ship[1][0]+1 < len(self.map) and self.map[ship[1][0]+1][ship[1][1]] == "I":
-            return True
-        if ship[1][0]-1 >= 0 and self.map[ship[1][0]-1][ship[1][1]] == "I":
-            return True
-        if ship[1][1]+1 < len(self.map[0]) and self.map[ship[1][0]][ship[1][1]+1] == "I":
-            return True
-        if ship[1][1]-1 >= 0 and self.map[ship[1][0]][ship[1][1]-1] == "I":
-            return True
+        if ship[1][0]+1 < len(self.map) and (ship[1][0]+1, ship[1][1]) in self.opposite_treasures:
+            return self.opposite_treasures[(ship[1][0]+1, ship[1][1])]
+        if ship[1][0]-1 >= 0 and (ship[1][0]-1, ship[1][1]) in self.opposite_treasures:
+            return self.opposite_treasures[(ship[1][0]-1, ship[1][1])]
+        if ship[1][1]+1 < len(self.map[0]) and (ship[1][0], ship[1][1]+1) in self.opposite_treasures:
+            return self.opposite_treasures[(ship[1][0], ship[1][1]+1)]
+        if ship[1][1]-1 >= 0 and (ship[1][0], ship[1][1]-1) in self.opposite_treasures:
+            return self.opposite_treasures[(ship[1][0], ship[1][1]-1)]
         return False
 
     def check_sail(self, action):
@@ -150,14 +158,16 @@ class OnePieceProblem(search.Problem):
         for ship, value in new_state.pirate_ships.items():
             if value[0] in marine_locations:
                 new_state.pirate_ships[ship][1] = set()
+        return new_state
 
     def move_marine_ships(self, state):
         for ship in self.marine_ships:
+            if len(self.marine_ships[ship]) == 1:
+                continue
             cur_index = self.marine_ships[ship].index(state.marine_ships[ship])
             if cur_index == len(self.marine_ships[ship])-1:
                 cur_index = 0
                 self.marine_ships[ship] = self.marine_ships[ship][::-1]
-            print(self.marine_ships[ship])
             state.marine_ships[ship] = self.marine_ships[ship][cur_index+1]
 
     def goal_test(self, state):
