@@ -17,12 +17,14 @@ class OnePieceState:
         self.marine_ships = marine_ships
         self.treasures_in_base = treasures_in_base
         self.treasures_in_ships = treasures_in_ships
-        self.tuple = self.to_tuple()
+        self.tuple = None
 
     def __eq__(self, other):
         return self.pirate_ships == other.pirate_ships and self.marine_ships == other.marine_ships
 
     def __hash__(self):
+        if self.tuple is None:
+            self.tuple = self.to_tuple()
         return hash(self.tuple)
 
     def __str__(self):
