@@ -11,11 +11,13 @@ ids = ["325161669", "111111111"]
 
 
 class OnePieceState:
-    def __init__(self, pirate_ships: dict[str: list[tuple[int, int], set]], marine_ships, treasures_in_base):
+    def __init__(self, pirate_ships: dict[str: list[tuple[int, int], set]], marine_ships, treasures_in_base,
+                 treasures_in_ships):
         self.pirate_ships = pirate_ships
         self.marine_ships = marine_ships
         self.treasures_in_base = treasures_in_base
         self.tuple = self.to_tuple()
+        self.treasures_in_ships = treasures_in_ships
 
     def __eq__(self, other):
         return self.pirate_ships == other.pirate_ships and self.marine_ships == other.marine_ships
@@ -33,7 +35,7 @@ class OnePieceState:
 
     def __deepcopy__(self, memodict={}):
         return OnePieceState(copy.deepcopy(self.pirate_ships), copy.deepcopy(self.marine_ships),
-                             copy.deepcopy(self.treasures_in_base))
+                             copy.deepcopy(self.treasures_in_base), copy.deepcopy(self.treasures_in_ships))
 
     def to_tuple(self):
         pirate_ships = tuple((ship, tuple(values[0]), tuple(values[1])) for ship, values in self.pirate_ships.items())
@@ -52,28 +54,35 @@ class OnePieceProblem(search.Problem):
         initial["pirate_ships"] = {ship: [values, set()]
                                    for ship, values in initial["pirate_ships"].items()}
         initial_state = OnePieceState(initial["pirate_ships"],
-                                      {key: value[0] for key, value in initial["marine_ships"].items()}, set())
+                                      {key: value[0] for key, value in initial["marine_ships"].items()}, set(), set())
         search.Problem.__init__(self, initial_state)
         self.map = initial["map"]
         self.pirate_ships = initial["pirate_ships"]
         self.treasures = initial["treasures"]
-        self.opposite_treasures = {value: key for key, value in self.treasures.items()}
+        self.opposite_treasures = {}
+        for key, value in self.treasures.items():
+            i = 0
+            while (*value, i) in self.opposite_treasures:
+                i += 1
+            self.opposite_treasures[(*value, i)] = key
+
         self.initial_marine_ships = initial["marine_ships"]
         self.marine_ships = copy.deepcopy(self.initial_marine_ships)
-        self.bfs_distances = self.bfs()
 
         for i in range(len(self.map)):
             for j in range(len(self.map[0])):
                 if self.map[i][j] == "B":
                     self.base = (i, j)
 
-    def atomic_actions(self, ship):
+    def atomic_actions(self, ship_name, state):
         """
         Returns all the atomic actions that can be executed by a ship
-        :param ship: should be a tuple (ship_name, (x, y), set of treasures)
+        :param ship_name: name of the ship
+        :param state: the state of the game
         """
+        ship = (ship_name, *state.pirate_ships[ship_name])
         possible = [("sail", ship[0], (ship[1][0] + 1, ship[1][1])), ("sail", ship[0], (ship[1][0] - 1, ship[1][1])),
-                   ("sail", ship[0], (ship[1][0], ship[1][1] + 1)), ("sail", ship[0], (ship[1][0], ship[1][1] - 1))]
+                    ("sail", ship[0], (ship[1][0], ship[1][1] + 1)), ("sail", ship[0], (ship[1][0], ship[1][1] - 1))]
 
         actions = []
         # sails actions
@@ -85,7 +94,7 @@ class OnePieceProblem(search.Problem):
         actions.append(("wait", ship[0]))
 
         # collect treasure action
-        treasure = self.check_collect_treasure(ship)
+        treasure = self.check_collect_treasure(ship, state)
         if treasure:
             actions.append(("collect_treasure", ship[0], treasure))
 
@@ -95,22 +104,39 @@ class OnePieceProblem(search.Problem):
 
         return actions
 
-    def check_collect_treasure(self, ship):
+    def check_collect_treasure(self, ship, state):
         """
         Checks if the ship can collect a treasure
         :param ship: should be a tuple (ship_name, (x, y), set of treasures)
+        :param state: the state of the game
         """
         if len(ship[2]) >= 2:
             return False
-        if ship[1][0]+1 < len(self.map) and (ship[1][0]+1, ship[1][1]) in self.opposite_treasures:
-            return self.opposite_treasures[(ship[1][0]+1, ship[1][1])]
-        if ship[1][0]-1 >= 0 and (ship[1][0]-1, ship[1][1]) in self.opposite_treasures:
-            return self.opposite_treasures[(ship[1][0]-1, ship[1][1])]
-        if ship[1][1]+1 < len(self.map[0]) and (ship[1][0], ship[1][1]+1) in self.opposite_treasures:
-            return self.opposite_treasures[(ship[1][0], ship[1][1]+1)]
-        if ship[1][1]-1 >= 0 and (ship[1][0], ship[1][1]-1) in self.opposite_treasures:
-            return self.opposite_treasures[(ship[1][0], ship[1][1]-1)]
+        if ship[1][0] + 1 < len(self.map) and (ship[1][0] + 1, ship[1][1], 0) in self.opposite_treasures:
+            return self.get_treasure_from_island((ship[1][0] + 1, ship[1][1]), state)
+        if ship[1][0] - 1 >= 0 and (ship[1][0] - 1, ship[1][1], 0) in self.opposite_treasures:
+            return self.get_treasure_from_island((ship[1][0] - 1, ship[1][1]), state)
+        if ship[1][1] + 1 < len(self.map[0]) and (ship[1][0], ship[1][1] + 1, 0) in self.opposite_treasures:
+            return self.get_treasure_from_island((ship[1][0], ship[1][1] + 1), state)
+        if ship[1][1] - 1 >= 0 and (ship[1][0], ship[1][1] - 1, 0) in self.opposite_treasures:
+            return self.get_treasure_from_island((ship[1][0], ship[1][1] - 1), state)
         return False
+
+    def get_treasure_from_island(self, island, state):
+        """
+        :param island: tuple of the location of the island - (x, y). We assume the island has treasures on it
+        :param state: the state of the game
+        :return: if there is a treasure that hasn't been collected on the island, return it. Otherwise, return
+        one of the treasures on the island
+        """
+        collected = state.treasures_in_base.union(state.treasures_in_ships)
+        i = 0
+        while (island[0], island[1], i) in self.opposite_treasures:
+            if self.opposite_treasures[(island[0], island[1], i)] not in collected:
+                return self.opposite_treasures[(island[0], island[1], i)]
+            i += 1
+        return self.opposite_treasures[(island[0], island[1], 0)]
+
 
     def check_sail(self, action):
         """
@@ -136,7 +162,7 @@ class OnePieceProblem(search.Problem):
         as defined in the problem description file"""
         actions = []
         for ship in state.pirate_ships:
-            actions.append(self.atomic_actions((ship, *state.pirate_ships[ship])))
+            actions.append(self.atomic_actions(ship, state))
         return list(product(*actions))
 
     def result(self, state: OnePieceState, action):
@@ -150,9 +176,12 @@ class OnePieceProblem(search.Problem):
                 new_state.pirate_ships[a[1]][0] = a[2]
             if a[0] == "collect_treasure":
                 new_state.pirate_ships[a[1]][1].add(a[2])
+                new_state.treasures_in_ships.add(a[2])
             if a[0] == "deposit_treasure":
                 new_state.treasures_in_base = new_state.treasures_in_base.union(new_state.pirate_ships[a[1]][1])
                 new_state.pirate_ships[a[1]][1] = set()
+                for treasure in state.pirate_ships[a[1]][1]:  # for every treasure that was in the ship
+                    new_state.treasures_in_ships.discard(treasure)
 
         marine_locations = new_state.marine_ships.values()
         for ship, value in new_state.pirate_ships.items():
@@ -165,10 +194,10 @@ class OnePieceProblem(search.Problem):
             if len(self.marine_ships[ship]) == 1:
                 continue
             cur_index = self.marine_ships[ship].index(state.marine_ships[ship])
-            if cur_index == len(self.marine_ships[ship])-1:
+            if cur_index == len(self.marine_ships[ship]) - 1:
                 cur_index = 0
                 self.marine_ships[ship] = self.marine_ships[ship][::-1]
-            state.marine_ships[ship] = self.marine_ships[ship][cur_index+1]
+            state.marine_ships[ship] = self.marine_ships[ship][cur_index + 1]
 
     def goal_test(self, state):
         """ Given a state, checks if this is the goal state.
@@ -192,7 +221,7 @@ class OnePieceProblem(search.Problem):
         for ship in node.state.pirate_ships.values():
             # ship is a list [location, set of treasures]
             if len(ship[1]) != 0:  # if the ship has treasures
-                ship_distance = self.get_ship_distance(ship[0])+1  # +1 for the step of depositing the treasure
+                ship_distance = self.get_ship_distance(ship[0]) + 1  # +1 for the step of depositing the treasure
                 for treasure in ship[1]:
                     treasure_locations[treasure] = min(treasure_locations[treasure], ship_distance)
 
@@ -204,7 +233,7 @@ class OnePieceProblem(search.Problem):
                 else:
                     treasure_locations[treasure] = 0
 
-        return sum(treasure_locations.values())/len(self.pirate_ships)
+        return sum(treasure_locations.values()) / len(self.pirate_ships)
 
     def get_ship_distance(self, location):
         """
@@ -243,20 +272,7 @@ class OnePieceProblem(search.Problem):
 
     @staticmethod
     def l1_distance(loc1, loc2):
-        return abs(loc1[0]-loc2[0]) + abs(loc1[1]-loc2[1])
-
-    def bfs(self):
-        """
-        :return: distance of each cell from the base avoiding islands
-        """
-        dist_mat = [[math.inf for _ in range(len(self.map[0]))] for _ in range(len(self.map))]
-        for i in range(len(self.map)):
-            for j in range(len(self.map[0])):
-                if self.map[i][j] != "I":
-                    queue = utils.FIFOQueue(items=[(i, j)])
-
-        return None
-
+        return abs(loc1[0] - loc2[0]) + abs(loc1[1] - loc2[1])
 
 
 """Feel free to add your own functions
