@@ -1,10 +1,13 @@
+import time
+
 import search
 import math
 from itertools import product
 import copy
 
+import utils
 
-ids = ["111111111", "111111111"]
+ids = ["325161669", "111111111"]
 
 
 class OnePieceState:
@@ -57,15 +60,12 @@ class OnePieceProblem(search.Problem):
         self.opposite_treasures = {value: key for key, value in self.treasures.items()}
         self.initial_marine_ships = initial["marine_ships"]
         self.marine_ships = copy.deepcopy(self.initial_marine_ships)
+        self.bfs_distances = self.bfs()
 
         for i in range(len(self.map)):
             for j in range(len(self.map[0])):
                 if self.map[i][j] == "B":
                     self.base = (i, j)
-
-        for i in self.opposite_treasures:
-            if self.map[i[0]][i[1]] != "I":
-                raise ValueError("Treasure is not on island")
 
     def atomic_actions(self, ship):
         """
@@ -186,37 +186,77 @@ class OnePieceProblem(search.Problem):
         return uncollected_treasures / len(self.pirate_ships)
 
     def h_2(self, node):
-        treasure_locations = {treasure: self.get_treasure_distance(loc) for treasure, loc in self.treasures.items()}
-        print(treasure_locations)
-        print(self.map)
+        treasure_locations = {treasure: math.inf for treasure in self.treasures}
+
+        # update the treasure locations of treasures that are held by a ship
         for ship in node.state.pirate_ships.values():
-            if len(ship[1]) == 0:
-                continue
-            ship_distance = self.get_treasure_distance(ship[0])
-            for treasure in ship[1]:
-                treasure_locations[treasure] = min(treasure_locations[treasure], ship_distance)
+            # ship is a list [location, set of treasures]
+            if len(ship[1]) != 0:  # if the ship has treasures
+                ship_distance = self.get_ship_distance(ship[0])+1  # +1 for the step of depositing the treasure
+                for treasure in ship[1]:
+                    treasure_locations[treasure] = min(treasure_locations[treasure], ship_distance)
+
+        # update the treasure locations of treasures that are not held by a ship
+        for treasure in treasure_locations:
+            if treasure_locations[treasure] == math.inf:
+                if treasure not in node.state.treasures_in_base:
+                    treasure_locations[treasure] = self.get_treasure_distance(self.treasures[treasure])
+                else:
+                    treasure_locations[treasure] = 0
 
         return sum(treasure_locations.values())/len(self.pirate_ships)
 
+    def get_ship_distance(self, location):
+        """
+        :param location: tuple of the location of the ship - (x,y)
+        :return: the l1 distance to the base. If all near edges are islands, returns infinity
+        """
+        upper_island = location[0] - 1 >= 0 and self.map[location[0] - 1][location[1]] == "I"
+        lower_island = location[0] + 1 < len(self.map) and self.map[location[0] + 1][location[1]] == "I"
+        left_island = location[1] - 1 >= 0 and self.map[location[0]][location[1] - 1] == "I"
+        right_island = location[1] + 1 < len(self.map[0]) and self.map[location[0]][location[1] + 1] == "I"
+        if upper_island and lower_island and left_island and right_island and location != self.base:
+            return math.inf
+        return self.l1_distance(location, self.base)
+
     def get_treasure_distance(self, location):
-        print(location)
+        """
+        :param location: the location of the island of a treasure that isn't taken by a ship or in the base
+        :return: get the distance of a treasure from its island to the base
+        """
         legal_indexes = self.legal_indexes(location)
         if len(legal_indexes) == 0:
             return math.inf
-        print([self.l1_distance(location, index) for index in legal_indexes])
         return min([self.l1_distance(self.base, index) for index in legal_indexes])
 
-    def legal_indexes(self, loc, ship=False):
-        if ship:
-            return [loc]
+    def legal_indexes(self, loc):
         legal = []
         if loc[0] + 1 < len(self.map) and self.map[loc[0] + 1][loc[1]] != "I":
             legal.append((loc[0] + 1, loc[1]))
         if loc[0] - 1 >= 0 and self.map[loc[0] - 1][loc[1]] != "I":
+            legal.append((loc[0] - 1, loc[1]))
+        if loc[1] + 1 < len(self.map[0]) and self.map[loc[0]][loc[1] + 1] != "I":
+            legal.append((loc[0], loc[1] + 1))
+        if loc[1] - 1 >= 0 and self.map[loc[0]][loc[1] - 1] != "I":
+            legal.append((loc[0], loc[1] - 1))
+        return legal
 
     @staticmethod
     def l1_distance(loc1, loc2):
         return abs(loc1[0]-loc2[0]) + abs(loc1[1]-loc2[1])
+
+    def bfs(self):
+        """
+        :return: distance of each cell from the base avoiding islands
+        """
+        dist_mat = [[math.inf for _ in range(len(self.map[0]))] for _ in range(len(self.map))]
+        for i in range(len(self.map)):
+            for j in range(len(self.map[0])):
+                if self.map[i][j] != "I":
+                    queue = utils.FIFOQueue(items=[(i, j)])
+
+        return None
+
 
 
 """Feel free to add your own functions
