@@ -16,8 +16,8 @@ class OnePieceState:
         self.pirate_ships = pirate_ships
         self.marine_ships = marine_ships
         self.treasures_in_base = treasures_in_base
-        self.tuple = self.to_tuple()
         self.treasures_in_ships = treasures_in_ships
+        self.tuple = self.to_tuple()
 
     def __eq__(self, other):
         return self.pirate_ships == other.pirate_ships and self.marine_ships == other.marine_ships
@@ -41,7 +41,8 @@ class OnePieceState:
         pirate_ships = tuple((ship, tuple(values[0]), tuple(values[1])) for ship, values in self.pirate_ships.items())
         marine_ships = tuple((ship, tuple(values)) for ship, values in self.marine_ships.items())
         treasures_in_base = tuple(self.treasures_in_base)
-        return pirate_ships, marine_ships, treasures_in_base
+        treasures_in_ships = tuple(self.treasures_in_ships)
+        return pirate_ships, marine_ships, treasures_in_base, treasures_in_ships
 
 
 class OnePieceProblem(search.Problem):
@@ -187,6 +188,8 @@ class OnePieceProblem(search.Problem):
         for ship, value in new_state.pirate_ships.items():
             if value[0] in marine_locations:
                 new_state.pirate_ships[ship][1] = set()
+                for treasure in value[1]:
+                    new_state.treasures_in_ships.discard(treasure)
         return new_state
 
     def move_marine_ships(self, state):

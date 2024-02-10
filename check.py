@@ -190,7 +190,7 @@ def main():
 
     ]
 
-    solve_problems(new_problems)
+    solve_problems(problems)
 
 
 if __name__ == '__main__':
