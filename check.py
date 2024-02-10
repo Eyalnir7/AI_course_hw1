@@ -63,7 +63,7 @@ def solve_problems(problems):
         timeout = 60
         result = check_problem(
             p, (lambda p: search.astar_search(p, p.h)), timeout)
-        print(f"A* {p.map}", result)
+        print(f"A* ", result)
         if result[2] != None:
             if result[0] != -3:
                 solved = solved + 1
@@ -190,7 +190,7 @@ def main():
 
     ]
 
-    solve_problems(problems)
+    solve_problems(new_problems)
 
 
 if __name__ == '__main__':

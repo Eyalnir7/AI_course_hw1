@@ -213,7 +213,57 @@ class OnePieceProblem(search.Problem):
         """ This is the heuristic. It gets a node (not a state,
         state can be accessed via [node.state]
         and returns a goal distance estimate"""
+        state = node.state
+        ship_avg_dist = {}
+        collected = state.treasures_in_base.union(state.treasures_in_ships)
+        uncollected = {treasure: loc for treasure, loc in self.treasures.items() if treasure not in collected}
+        uncollected_count = len(uncollected)
+
+        # Fill the ship_avg_dist dictionary
+        for ship, value in state.pirate_ships.items():
+            dist_to_base = self.get_ship_distance(value[0])
+            if len(value[1]) == 1:
+                avg = 0
+                for treasure_loc in uncollected.values():
+                    avg += self.l1_distance(value[0], treasure_loc)
+                avg = avg/uncollected_count if uncollected_count > 0 else 0
+                ship_avg_dist[ship] = (dist_to_base, avg)
+            else:
+                ship_avg_dist[ship] = (dist_to_base, None)
+
+        # Calculate the avg distance between every two uncollected treasures
+        avg_treasure_dist = 0
+        uncollected_vals = list(uncollected.values())
+        if uncollected_count > 1:
+            for i in range(uncollected_count):
+                for j in range(i + 1, uncollected_count):
+                    avg_treasure_dist += self.l1_distance(uncollected_vals[i], uncollected_vals[j])
+
+            avg_treasure_dist = avg_treasure_dist / (uncollected_count * (uncollected_count - 1) / 2)
+
+        # Calculate the avg uncollected treasure distance to the base
+        avg_treasure_to_base = 0
+        for treasure_loc in uncollected_vals:
+            avg_treasure_to_base += self.get_treasure_distance(treasure_loc)
+        avg_treasure_to_base = avg_treasure_to_base / uncollected_count if uncollected_count > 0 else 0
+
+        avg_uncollected_per_ship = uncollected_count / len(self.pirate_ships)
+
+        huristic_per_ship = []
+        for ship, values in state.pirate_ships.items():
+            if len(values[1]) == 0:
+                huristic_per_ship.append(avg_uncollected_per_ship/2 * avg_treasure_dist
+                                         + avg_uncollected_per_ship * avg_treasure_to_base)
+            if len(values[1]) == 1:
+                huristic_per_ship.append(ship_avg_dist[ship][0] + ship_avg_dist[ship][1]
+                                         + (avg_uncollected_per_ship-1)/2 * avg_treasure_dist
+                                         + (avg_uncollected_per_ship-1) * avg_treasure_to_base)
+            if len(values[1]) > 1:
+                huristic_per_ship.append(ship_avg_dist[ship][0] + avg_uncollected_per_ship/2 * avg_treasure_dist
+                                         + avg_uncollected_per_ship * avg_treasure_to_base)
+
         return self.h_2(node)
+
 
     def h_1(self, node):
         uncollected_treasures = len(self.treasures) - len(node.state.treasures_in_base)
