@@ -154,6 +154,7 @@ def astar_search(problem, h=None):
     while len(expanded) > 0:
         node = expanded.pop()
         if node.state not in seen or node.depth < dist[node.state]:
+
             seen.add(node.state)
             dist[node.state] = node.depth
             if problem.goal_test(node.state):

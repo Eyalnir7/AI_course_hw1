@@ -7,24 +7,25 @@ import copy
 
 import utils
 
-ids = ["325161669", "111111111"]
+ids = ["325161669", "330053893"]
 
 
 class OnePieceState:
     def __init__(self, pirate_ships: dict[str: list[tuple[int, int], set]], marine_ships, treasures_in_base,
-                 treasures_in_ships):
+                 treasures_in_ships, marine_ships_backwards):
         self.pirate_ships = pirate_ships
         self.marine_ships = marine_ships
         self.treasures_in_base = treasures_in_base
         self.treasures_in_ships = treasures_in_ships
+        self.marine_ships_backwards = marine_ships_backwards  # For each marine ship, the direction it's facing
         self.tuple = None
 
     def __eq__(self, other):
-        return self.pirate_ships == other.pirate_ships and self.marine_ships == other.marine_ships
+        return self.pirate_ships == other.pirate_ships and self.marine_ships == other.marine_ships and \
+               self.treasures_in_base == other.treasures_in_base and self.treasures_in_ships == \
+               other.treasures_in_ships and self.marine_ships_backwards == other.marine_ships_backwards
 
     def __hash__(self):
-        if self.tuple is None:
-            self.tuple = self.to_tuple()
         return hash(self.tuple)
 
     def __str__(self):
@@ -37,14 +38,17 @@ class OnePieceState:
 
     def __deepcopy__(self, memodict={}):
         return OnePieceState(copy.deepcopy(self.pirate_ships), copy.deepcopy(self.marine_ships),
-                             copy.deepcopy(self.treasures_in_base), copy.deepcopy(self.treasures_in_ships))
+                             copy.deepcopy(self.treasures_in_base), copy.deepcopy(self.treasures_in_ships),
+                             copy.deepcopy(self.marine_ships_backwards))
 
     def to_tuple(self):
-        pirate_ships = tuple((ship, tuple(values[0]), tuple(values[1])) for ship, values in self.pirate_ships.items())
+        pirate_ships = tuple((ship, tuple(values[0]), tuple(values[1])) for ship, values in
+                             self.pirate_ships.items())
         marine_ships = tuple((ship, tuple(values)) for ship, values in self.marine_ships.items())
         treasures_in_base = tuple(self.treasures_in_base)
         treasures_in_ships = tuple(self.treasures_in_ships)
-        return pirate_ships, marine_ships, treasures_in_base, treasures_in_ships
+        marine_ships_backwards = tuple((ship, value) for ship, value in self.marine_ships_backwards.items())
+        self.tuple = (pirate_ships, marine_ships, treasures_in_base, treasures_in_ships, marine_ships_backwards)
 
 
 class OnePieceProblem(search.Problem):
@@ -57,7 +61,8 @@ class OnePieceProblem(search.Problem):
         initial["pirate_ships"] = {ship: [values, set()]
                                    for ship, values in initial["pirate_ships"].items()}
         initial_state = OnePieceState(initial["pirate_ships"],
-                                      {key: value[0] for key, value in initial["marine_ships"].items()}, set(), set())
+                                      {key: value[0] for key, value in initial["marine_ships"].items()}, set(), set(),
+                                      {key: False for key in initial["marine_ships"]})
         search.Problem.__init__(self, initial_state)
         self.map = initial["map"]
         self.pirate_ships = initial["pirate_ships"]
@@ -65,9 +70,9 @@ class OnePieceProblem(search.Problem):
         self.opposite_treasures = {}
         for key, value in self.treasures.items():
             i = 0
-            while (*value, i) in self.opposite_treasures:
+            while (value[0], value[1], i) in self.opposite_treasures:
                 i += 1
-            self.opposite_treasures[(*value, i)] = key
+            self.opposite_treasures[(value[0], value[1], i)] = key
 
         self.initial_marine_ships = initial["marine_ships"]
         self.marine_ships = copy.deepcopy(self.initial_marine_ships)
@@ -140,7 +145,6 @@ class OnePieceProblem(search.Problem):
             i += 1
         return self.opposite_treasures[(island[0], island[1], 0)]
 
-
     def check_sail(self, action):
         """
         Checks if the sail action is valid
@@ -188,10 +192,13 @@ class OnePieceProblem(search.Problem):
 
         marine_locations = new_state.marine_ships.values()
         for ship, value in new_state.pirate_ships.items():
+            if len(value[1]) == 0:
+                continue
             if value[0] in marine_locations:
                 new_state.pirate_ships[ship][1] = set()
                 for treasure in value[1]:
                     new_state.treasures_in_ships.discard(treasure)
+        new_state.to_tuple()
         return new_state
 
     def move_marine_ships(self, state):
@@ -199,10 +206,16 @@ class OnePieceProblem(search.Problem):
             if len(self.marine_ships[ship]) == 1:
                 continue
             cur_index = self.marine_ships[ship].index(state.marine_ships[ship])
-            if cur_index == len(self.marine_ships[ship]) - 1:
-                cur_index = 0
-                self.marine_ships[ship] = self.marine_ships[ship][::-1]
-            state.marine_ships[ship] = self.marine_ships[ship][cur_index + 1]
+            if cur_index == 0 and state.marine_ships_backwards[ship]:
+                state.marine_ships[ship] = self.marine_ships[ship][1]
+                state.marine_ships_backwards[ship] = False
+            elif cur_index == len(self.marine_ships[ship]) - 1 and not state.marine_ships_backwards[ship]:
+                state.marine_ships[ship] = self.marine_ships[ship][-2]
+                state.marine_ships_backwards[ship] = True
+            elif state.marine_ships_backwards[ship]:
+                state.marine_ships[ship] = self.marine_ships[ship][cur_index - 1]
+            else:
+                state.marine_ships[ship] = self.marine_ships[ship][cur_index + 1]
 
     def goal_test(self, state):
         """ Given a state, checks if this is the goal state.
@@ -249,21 +262,35 @@ class OnePieceProblem(search.Problem):
 
         avg_uncollected_per_ship = uncollected_count / len(self.pirate_ships)
 
-        huristic_per_ship = []
+        heuristic_per_ship = []
         for ship, values in state.pirate_ships.items():
             if len(values[1]) == 0:
-                huristic_per_ship.append(avg_uncollected_per_ship/2 * avg_treasure_dist
+                heuristic_per_ship.append(avg_uncollected_per_ship/2 * avg_treasure_dist
                                          + avg_uncollected_per_ship * avg_treasure_to_base)
             if len(values[1]) == 1:
-                huristic_per_ship.append(ship_avg_dist[ship][0] + ship_avg_dist[ship][1]
+                heuristic_per_ship.append(ship_avg_dist[ship][0] + ship_avg_dist[ship][1]
                                          + (avg_uncollected_per_ship-1)/2 * avg_treasure_dist
                                          + (avg_uncollected_per_ship-1) * avg_treasure_to_base)
             if len(values[1]) > 1:
-                huristic_per_ship.append(ship_avg_dist[ship][0] + avg_uncollected_per_ship/2 * avg_treasure_dist
+                heuristic_per_ship.append(ship_avg_dist[ship][0] + avg_uncollected_per_ship/2 * avg_treasure_dist
                                          + avg_uncollected_per_ship * avg_treasure_to_base)
+        return self.h_ben(node)
 
-        return self.h_2(node)
-
+    def h_ben(self, node):
+        state = node.state
+        sum_distances = 0
+        for ship in state.pirate_ships:
+            if len(state.pirate_ships[ship][1]) < 2:
+                min_treasure_distance = math.inf
+                for x, y, i in self.opposite_treasures:
+                    if self.opposite_treasures[(x, y, i)] not in state.treasures_in_base and \
+                            self.opposite_treasures[(x, y, i)] not in state.treasures_in_ships:
+                        if self.l1_distance(state.pirate_ships[ship][0], (x, y)) < min_treasure_distance:
+                            min_treasure_distance = self.l1_distance(state.pirate_ships[ship][0], (x, y))
+                sum_distances += self.l1_distance(state.pirate_ships[ship][0], self.base) + min_treasure_distance
+            else:
+                sum_distances += self.l1_distance(state.pirate_ships[ship][0], self.base)
+        return sum_distances
 
     def h_1(self, node):
         uncollected_treasures = len(self.treasures) - len(node.state.treasures_in_base)
