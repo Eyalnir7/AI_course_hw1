@@ -60,7 +60,7 @@ def solve_problems(problems):
         except Exception as e:
             print("Error creating problem: ", e)
             return None
-        timeout = 100000
+        timeout = 60
         result = check_problem(
             p, (lambda p: search.astar_search(p, p.h)), timeout)
         print(f"A* ", result)
@@ -190,7 +190,8 @@ def main():
 
     ]
 
-    solve_problems(problems)
+    solve_problems(
+        new_problems)
 
 
 if __name__ == '__main__':

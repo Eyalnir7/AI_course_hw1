@@ -226,59 +226,59 @@ class OnePieceProblem(search.Problem):
         """ This is the heuristic. It gets a node (not a state,
         state can be accessed via [node.state]
         and returns a goal distance estimate"""
-        state = node.state
-        ship_avg_dist = {}
-        collected = state.treasures_in_base.union(state.treasures_in_ships)
-        uncollected = {treasure: loc for treasure, loc in self.treasures.items() if treasure not in collected}
-        uncollected_count = len(uncollected)
-
-        # Fill the ship_avg_dist dictionary
-        for ship, value in state.pirate_ships.items():
-            dist_to_base = self.get_ship_distance(value[0])
-            if len(value[1]) == 1:
-                avg = 0
-                for treasure_loc in uncollected.values():
-                    avg += self.l1_distance(value[0], treasure_loc)
-                avg = avg/uncollected_count if uncollected_count > 0 else 0
-                ship_avg_dist[ship] = (dist_to_base, avg)
-            else:
-                ship_avg_dist[ship] = (dist_to_base, None)
-
-        # Calculate the avg distance between every two uncollected treasures
-        avg_treasure_dist = 0
-        uncollected_vals = list(uncollected.values())
-        if uncollected_count > 1:
-            for i in range(uncollected_count):
-                for j in range(i + 1, uncollected_count):
-                    avg_treasure_dist += self.l1_distance(uncollected_vals[i], uncollected_vals[j])
-
-            avg_treasure_dist = avg_treasure_dist / (uncollected_count * (uncollected_count - 1) / 2)
-
-        # Calculate the avg uncollected treasure distance to the base
-        avg_treasure_to_base = 0
-        for treasure_loc in uncollected_vals:
-            avg_treasure_to_base += self.get_treasure_distance(treasure_loc)
-        avg_treasure_to_base = avg_treasure_to_base / uncollected_count if uncollected_count > 0 else 0
-
-        avg_uncollected_per_ship = uncollected_count / len(self.pirate_ships)
-
-        heuristic_per_ship = []
-        for ship, values in state.pirate_ships.items():
-            if len(values[1]) == 0:
-                heuristic_per_ship.append(avg_uncollected_per_ship/2 * avg_treasure_dist
-                                         + avg_uncollected_per_ship * avg_treasure_to_base)
-            if len(values[1]) == 1:
-                heuristic_per_ship.append(ship_avg_dist[ship][0] + ship_avg_dist[ship][1]
-                                         + (avg_uncollected_per_ship-1)/2 * avg_treasure_dist
-                                         + (avg_uncollected_per_ship-1) * avg_treasure_to_base)
-            if len(values[1]) > 1:
-                heuristic_per_ship.append(ship_avg_dist[ship][0] + avg_uncollected_per_ship/2 * avg_treasure_dist
-                                         + avg_uncollected_per_ship * avg_treasure_to_base)
-        return self.h_ben(node)
+        # state = node.state
+        # ship_avg_dist = {}
+        # collected = state.treasures_in_base.union(state.treasures_in_ships)
+        # uncollected = {treasure: loc for treasure, loc in self.treasures.items() if treasure not in collected}
+        # uncollected_count = len(uncollected)
+        #
+        # # Fill the ship_avg_dist dictionary
+        # for ship, value in state.pirate_ships.items():
+        #     dist_to_base = self.get_ship_distance(value[0])
+        #     if len(value[1]) == 1:
+        #         avg = 0
+        #         for treasure_loc in uncollected.values():
+        #             avg += self.l1_distance(value[0], treasure_loc)
+        #         avg = avg/uncollected_count if uncollected_count > 0 else 0
+        #         ship_avg_dist[ship] = (dist_to_base, avg)
+        #     else:
+        #         ship_avg_dist[ship] = (dist_to_base, None)
+        #
+        # # Calculate the avg distance between every two uncollected treasures
+        # avg_treasure_dist = 0
+        # uncollected_vals = list(uncollected.values())
+        # if uncollected_count > 1:
+        #     for i in range(uncollected_count):
+        #         for j in range(i + 1, uncollected_count):
+        #             avg_treasure_dist += self.l1_distance(uncollected_vals[i], uncollected_vals[j])
+        #
+        #     avg_treasure_dist = avg_treasure_dist / (uncollected_count * (uncollected_count - 1) / 2)
+        #
+        # # Calculate the avg uncollected treasure distance to the base
+        # avg_treasure_to_base = 0
+        # for treasure_loc in uncollected_vals:
+        #     avg_treasure_to_base += self.get_treasure_distance(treasure_loc)
+        # avg_treasure_to_base = avg_treasure_to_base / uncollected_count if uncollected_count > 0 else 0
+        #
+        # avg_uncollected_per_ship = uncollected_count / len(self.pirate_ships)
+        #
+        # heuristic_per_ship = []
+        # for ship, values in state.pirate_ships.items():
+        #     if len(values[1]) == 0:
+        #         heuristic_per_ship.append(avg_uncollected_per_ship/2 * avg_treasure_dist
+        #                                  + avg_uncollected_per_ship * avg_treasure_to_base)
+        #     if len(values[1]) == 1:
+        #         heuristic_per_ship.append(ship_avg_dist[ship][0] + ship_avg_dist[ship][1]
+        #                                  + (avg_uncollected_per_ship-1)/2 * avg_treasure_dist
+        #                                  + (avg_uncollected_per_ship-1) * avg_treasure_to_base)
+        #     if len(values[1]) > 1:
+        #         heuristic_per_ship.append(ship_avg_dist[ship][0] + avg_uncollected_per_ship/2 * avg_treasure_dist
+        #                                  + avg_uncollected_per_ship * avg_treasure_to_base)
+        return self.h_eyal(node)
 
     def h_ben(self, node):
         state = node.state
-        sum_distances = 0
+        distances = []
         for ship in state.pirate_ships:
             if len(state.pirate_ships[ship][1]) < 2:
                 min_treasure_distance = math.inf
@@ -287,10 +287,69 @@ class OnePieceProblem(search.Problem):
                             self.opposite_treasures[(x, y, i)] not in state.treasures_in_ships:
                         if self.l1_distance(state.pirate_ships[ship][0], (x, y)) < min_treasure_distance:
                             min_treasure_distance = self.l1_distance(state.pirate_ships[ship][0], (x, y))
-                sum_distances += self.l1_distance(state.pirate_ships[ship][0], self.base) + min_treasure_distance
+                if min_treasure_distance == math.inf:
+                    min_treasure_distance = 0
+                distances.append(self.l1_distance(state.pirate_ships[ship][0], self.base) + min_treasure_distance)
             else:
-                sum_distances += self.l1_distance(state.pirate_ships[ship][0], self.base)
-        return sum_distances
+                distances.append(self.l1_distance(state.pirate_ships[ship][0], self.base))
+        return sum(distances)
+
+    def h_eyal(self, node):
+        state = node.state
+        collected = state.treasures_in_base.union(state.treasures_in_ships)
+        uncollected = {treasure: loc for treasure, loc in self.treasures.items() if treasure not in collected}
+        ship_distances = []
+        for ship, value in state.pirate_ships.items():
+            ship_distance = 0
+            ship_location = value[0]
+            ship_distance += self.closest_treasures(uncollected, ship_location, min(2-len(value[1]), len(uncollected)))
+            if len(value[1]) > 0 and len(uncollected) == 0:
+                ship_distance += self.l1_distance(ship_location, self.base)
+            ship_location = self.base
+
+            while len(uncollected) > 0:
+                ship_distance += self.closest_treasures(uncollected, ship_location, min(2, len(uncollected)))
+
+            ship_distances.append(ship_distance)
+
+        return max(ship_distances)/(len(ship_distances))
+
+    def closest_treasures(self, uncollected, location, num_treasures):
+        """
+        :param uncollected: set of uncollected treasures
+        :param location: location
+        :param num_treasures: number of treasures to find (-1 if don't even hold any treasures)
+        :return: the length of the shortest path between the location and the closest num_treasures treasures including
+        the distance to the base and the treasures themselves
+        """
+        closest_treasures = (None, None)
+        if num_treasures == 0:
+            return 0
+        min_length = math.inf
+        if num_treasures == 2:
+            for treasure1, treasure_loc1 in uncollected.items():
+                for treasure2, treasure_loc2 in uncollected.items():
+                    if treasure1 != treasure2:
+                        length = self.l1_distance(location, treasure_loc1) + self.l1_distance(treasure_loc1,
+                                                                                              treasure_loc2)
+                        if length < min_length:
+                            min_length = length
+                            closest_treasures = (treasure1, treasure2)
+            min_length += self.l1_distance(uncollected[closest_treasures[1]], self.base)
+        if num_treasures == 1:
+            for treasure, treasure_loc in uncollected.items():
+                length = self.l1_distance(location, treasure_loc)
+                if length < min_length:
+                    min_length = length
+                    closest_treasures = (treasure, None)
+            min_length += self.l1_distance(uncollected[closest_treasures[0]], self.base)
+
+        if closest_treasures[0]:
+            uncollected.pop(closest_treasures[0])
+        if closest_treasures[1]:
+            uncollected.pop(closest_treasures[1])
+
+        return min_length
 
     def h_1(self, node):
         uncollected_treasures = len(self.treasures) - len(node.state.treasures_in_base)
