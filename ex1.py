@@ -139,7 +139,8 @@ class OnePieceProblem(search.Problem):
             self.shortest_path = shortest_path
             print(shortest_distance)
             print(shortest_path)
-            print(self.combine_paths_to_state(shortest_path, shortest_distance))
+            self.optimal_path_states = self.combine_paths_to_state(shortest_path, shortest_distance)
+            print(self.optimal_path_states)
 
     def combine_paths_to_state(self, paths, shortest_distance):
         """
@@ -324,6 +325,10 @@ class OnePieceProblem(search.Problem):
         and returns a goal distance estimate"""
         if len(self.pirate_ships) <= 1:
             return self.h_2(node)
+        if node.state in self.optimal_path_states:
+            return len(self.optimal_path_states) - self.optimal_path_states.index(node.state) - 1
+        else:
+            return math.inf
 
     def h_ben(self, node):
         state = node.state
