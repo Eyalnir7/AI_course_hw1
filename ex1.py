@@ -2,15 +2,21 @@ import time
 
 import search
 import math
-from itertools import product
+from itertools import product, chain, combinations
 import copy
 
 import utils
 
 ids = ["325161669", "330053893"]
+NPC = 'pirate'
 
 
 def create_all_vectors(k, s):
+    """
+    :param k: number of options for each coordinate
+    :param s: the length of the vector
+    :return: list of all possible vectors of length s, where each coordinate is in the range {0, ... ,k-1}
+    """
     if s == 0:
         return [[]]
     all_vectors = []
@@ -21,7 +27,10 @@ def create_all_vectors(k, s):
     return all_vectors
 
 
-
+def powerset(iterable):
+    """powerset([1,2,3]) --> (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"""
+    s = list(iterable)
+    return list(chain.from_iterable(combinations(s, r) for r in range(len(s)+1)))
 
 
 class OnePieceState:
@@ -80,7 +89,10 @@ class OnePieceProblem(search.Problem):
         search.Problem.__init__(self, initial_state)
         self.map = initial["map"]
         self.pirate_ships = initial["pirate_ships"]
+        self.index_to_pirate = {i: key for i, key in enumerate(self.pirate_ships)}
         self.treasures = initial["treasures"]
+        self.index_to_treasure = {i: key for i, key in enumerate(self.treasures)}
+        self.treasure_to_index = {key: i for i, key in self.index_to_treasure.items()}
         self.opposite_treasures = {}
         for key, value in self.treasures.items():
             i = 0
@@ -97,11 +109,12 @@ class OnePieceProblem(search.Problem):
                     self.base = (i, j)
 
         if len(self.pirate_ships) > 1:
-            treasures_power_set = utils.powerset(self.treasures.keys())
+            treasures_power_set = powerset(self.index_to_treasure.keys())
             shortest_path_to_treasures = {}
             for treasure_set in treasures_power_set:
-                simple_ships = {'p1': self.base}
-                treasures = {key: self.treasures[key] for key in treasure_set}
+                simple_ships = {NPC: self.base}
+                treasures = {self.index_to_treasure[key]: self.treasures[self.index_to_treasure[key]]
+                             for key in treasure_set}
                 simple_initial = {
                     "map": self.map,
                     "pirate_ships": simple_ships,
@@ -110,16 +123,60 @@ class OnePieceProblem(search.Problem):
                 }
                 simple_problem = OnePieceProblem2(simple_initial)
                 simple_solution = search.astar_search(simple_problem)
-                shortest_path_to_treasures[tuple(treasure_set)] = simple_solution.path()
-                print(treasure_set)
-                print(list(map(lambda n: n.state, simple_solution.path()))[1:])
+                shortest_path_to_treasures[treasure_set] = simple_solution.path()
+                #  print(list(map(lambda n: n.state, simple_solution.path())))
 
             shortest_distance = float('inf')
+            shortest_path = []
+            for partition in create_all_vectors(len(self.pirate_ships), len(self.treasures)):
+                treasures_per_pirate = self.extract_treasures_sets_from_vector(partition)
+                length_of_path = max([len(shortest_path_to_treasures[pirate]) for pirate in treasures_per_pirate])
+                if length_of_path < shortest_distance:
+                    shortest_distance = length_of_path
+                    shortest_path = [shortest_path_to_treasures[pirate] for pirate in treasures_per_pirate]
+                    shortest_path = [[n.state for n in path] for path in shortest_path]
+
+            self.shortest_path = shortest_path
+            print(shortest_distance)
+            print(shortest_path)
+            print(self.combine_paths_to_state(shortest_path, shortest_distance))
+
+    def combine_paths_to_state(self, paths, shortest_distance):
+        """
+        :param shortest_distance: the length of the longest path in paths (which is the length of the best solution)
+        :param paths: list of paths, where each path is a list of states
+        :return: a state that is the combination of all the paths
+        """
+        final_path = []
+        for i in range(shortest_distance):
+            pirate_ships = {}
+            treasures_in_base = set()
+            treasures_in_ships = set()
+            marine_ships = None
+            marine_ships_backwards = None
+            for j, path in enumerate(paths):
+                if i < len(path):
+                    pirate_ships[self.index_to_pirate[j]] = copy.deepcopy(path[i].pirate_ships[NPC])
+                    treasures_in_base = treasures_in_base.union(path[i].treasures_in_base)
+                    treasures_in_ships = treasures_in_ships.union(path[i].treasures_in_ships)
+                    marine_ships = copy.deepcopy(path[i].marine_ships)
+                    marine_ships_backwards = copy.deepcopy(path[i].marine_ships_backwards)
+                else:
+                    pirate_ships[self.index_to_pirate[j]] = copy.deepcopy(path[-1].pirate_ships[NPC])
+                    treasures_in_base = copy.deepcopy(path[-1].treasures_in_base)
+                    treasures_in_ships = copy.deepcopy(path[-1].treasures_in_ships)
+            final_path.append(OnePieceState(pirate_ships, marine_ships, treasures_in_base, treasures_in_ships,
+                                            marine_ships_backwards))
+
+        return final_path
 
 
-            print(shortest_path_to_treasures)
-
-
+    def extract_treasures_sets_from_vector(self, vector):
+        treasures_per_pirate = [[] for _ in range(len(self.pirate_ships))]
+        for i in range(len(vector)):
+            treasures_per_pirate[vector[i]].append(i)
+        treasures_per_pirate = [tuple(treasures_per_p) for treasures_per_p in treasures_per_pirate]
+        return treasures_per_pirate
 
     def atomic_actions(self, ship_name, state):
         """
@@ -265,55 +322,8 @@ class OnePieceProblem(search.Problem):
         """ This is the heuristic. It gets a node (not a state,
         state can be accessed via [node.state]
         and returns a goal distance estimate"""
-        # state = node.state
-        # ship_avg_dist = {}
-        # collected = state.treasures_in_base.union(state.treasures_in_ships)
-        # uncollected = {treasure: loc for treasure, loc in self.treasures.items() if treasure not in collected}
-        # uncollected_count = len(uncollected)
-        #
-        # # Fill the ship_avg_dist dictionary
-        # for ship, value in state.pirate_ships.items():
-        #     dist_to_base = self.get_ship_distance(value[0])
-        #     if len(value[1]) == 1:
-        #         avg = 0
-        #         for treasure_loc in uncollected.values():
-        #             avg += self.l1_distance(value[0], treasure_loc)
-        #         avg = avg/uncollected_count if uncollected_count > 0 else 0
-        #         ship_avg_dist[ship] = (dist_to_base, avg)
-        #     else:
-        #         ship_avg_dist[ship] = (dist_to_base, None)
-        #
-        # # Calculate the avg distance between every two uncollected treasures
-        # avg_treasure_dist = 0
-        # uncollected_vals = list(uncollected.values())
-        # if uncollected_count > 1:
-        #     for i in range(uncollected_count):
-        #         for j in range(i + 1, uncollected_count):
-        #             avg_treasure_dist += self.l1_distance(uncollected_vals[i], uncollected_vals[j])
-        #
-        #     avg_treasure_dist = avg_treasure_dist / (uncollected_count * (uncollected_count - 1) / 2)
-        #
-        # # Calculate the avg uncollected treasure distance to the base
-        # avg_treasure_to_base = 0
-        # for treasure_loc in uncollected_vals:
-        #     avg_treasure_to_base += self.get_treasure_distance(treasure_loc)
-        # avg_treasure_to_base = avg_treasure_to_base / uncollected_count if uncollected_count > 0 else 0
-        #
-        # avg_uncollected_per_ship = uncollected_count / len(self.pirate_ships)
-        #
-        # heuristic_per_ship = []
-        # for ship, values in state.pirate_ships.items():
-        #     if len(values[1]) == 0:
-        #         heuristic_per_ship.append(avg_uncollected_per_ship/2 * avg_treasure_dist
-        #                                  + avg_uncollected_per_ship * avg_treasure_to_base)
-        #     if len(values[1]) == 1:
-        #         heuristic_per_ship.append(ship_avg_dist[ship][0] + ship_avg_dist[ship][1]
-        #                                  + (avg_uncollected_per_ship-1)/2 * avg_treasure_dist
-        #                                  + (avg_uncollected_per_ship-1) * avg_treasure_to_base)
-        #     if len(values[1]) > 1:
-        #         heuristic_per_ship.append(ship_avg_dist[ship][0] + avg_uncollected_per_ship/2 * avg_treasure_dist
-        #                                  + avg_uncollected_per_ship * avg_treasure_to_base)
-        return self.h_eyal(node)
+        if len(self.pirate_ships) <= 1:
+            return self.h_2(node)
 
     def h_ben(self, node):
         state = node.state
@@ -341,7 +351,8 @@ class OnePieceProblem(search.Problem):
         for ship, value in state.pirate_ships.items():
             ship_distance = 0
             ship_location = value[0]
-            ship_distance += self.closest_treasures(uncollected, ship_location, min(2-len(value[1]), len(uncollected)))
+            ship_distance += self.closest_treasures(uncollected, ship_location,
+                                                    min(2 - len(value[1]), len(uncollected)))
             if len(value[1]) > 0 and len(uncollected) == 0:
                 ship_distance += self.l1_distance(ship_location, self.base)
             ship_location = self.base
@@ -351,7 +362,7 @@ class OnePieceProblem(search.Problem):
 
             ship_distances.append(ship_distance)
 
-        return max(ship_distances)/(len(ship_distances))
+        return max(ship_distances) / (len(ship_distances))
 
     def closest_treasures(self, uncollected, location, num_treasures):
         """
@@ -706,7 +717,8 @@ class OnePieceProblem2(search.Problem):
         for ship, value in state.pirate_ships.items():
             ship_distance = 0
             ship_location = value[0]
-            ship_distance += self.closest_treasures(uncollected, ship_location, min(2-len(value[1]), len(uncollected)))
+            ship_distance += self.closest_treasures(uncollected, ship_location,
+                                                    min(2 - len(value[1]), len(uncollected)))
             if len(value[1]) > 0 and len(uncollected) == 0:
                 ship_distance += self.l1_distance(ship_location, self.base)
             ship_location = self.base
@@ -716,7 +728,7 @@ class OnePieceProblem2(search.Problem):
 
             ship_distances.append(ship_distance)
 
-        return max(ship_distances)/(len(ship_distances))
+        return max(ship_distances) / (len(ship_distances))
 
     def closest_treasures(self, uncollected, location, num_treasures):
         """
@@ -818,6 +830,7 @@ class OnePieceProblem2(search.Problem):
     @staticmethod
     def l1_distance(loc1, loc2):
         return abs(loc1[0] - loc2[0]) + abs(loc1[1] - loc2[1])
+
 
 """Feel free to add your own functions
 (-2, -2, None) means there was a timeout"""
