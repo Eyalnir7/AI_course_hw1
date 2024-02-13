@@ -162,7 +162,7 @@ def astar_search(problem, h=None):
                 return node
             for child in node.expand(problem):
                 if f(child) < float('inf'):
-                    if isinstance(problem, ex1.OnePieceProblem):
-                        print(child.state)
+                    # if isinstance(problem, ex1.OnePieceProblem):
+                    #     # print(child.state)
                     expanded.append(child)
     return None
