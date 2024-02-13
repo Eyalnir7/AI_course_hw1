@@ -99,6 +99,7 @@ class OnePieceProblem(search.Problem):
             while (value[0], value[1], i) in self.opposite_treasures:
                 i += 1
             self.opposite_treasures[(value[0], value[1], i)] = key
+        print(self.opposite_treasures)
 
         self.initial_marine_ships = initial["marine_ships"]
         self.marine_ships = copy.deepcopy(self.initial_marine_ships)
@@ -124,7 +125,7 @@ class OnePieceProblem(search.Problem):
                 simple_problem = OnePieceProblem2(simple_initial)
                 simple_solution = search.astar_search(simple_problem)
                 shortest_path_to_treasures[treasure_set] = simple_solution.path()
-                #  print(list(map(lambda n: n.state, simple_solution.path())))
+
 
             shortest_distance = float('inf')
             shortest_path = []
@@ -137,10 +138,10 @@ class OnePieceProblem(search.Problem):
                     shortest_path = [[n.state for n in path] for path in shortest_path]
 
             self.shortest_path = shortest_path
-            # print(shortest_distance)
-            # print(shortest_path)
+            print(shortest_distance)
+            print(shortest_path)
             self.optimal_path_states = self.combine_paths_to_state(shortest_path, shortest_distance)
-            # print(self.optimal_path_states)
+            print(self.optimal_path_states)
 
     def combine_paths_to_state(self, paths, shortest_distance):
         """
