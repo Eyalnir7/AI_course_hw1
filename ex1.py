@@ -137,10 +137,10 @@ class OnePieceProblem(search.Problem):
                     shortest_path = [[n.state for n in path] for path in shortest_path]
 
             self.shortest_path = shortest_path
-            print(shortest_distance)
-            print(shortest_path)
+            # print(shortest_distance)
+            # print(shortest_path)
             self.optimal_path_states = self.combine_paths_to_state(shortest_path, shortest_distance)
-            print(self.optimal_path_states)
+            # print(self.optimal_path_states)
 
     def combine_paths_to_state(self, paths, shortest_distance):
         """
@@ -171,7 +171,6 @@ class OnePieceProblem(search.Problem):
 
         return final_path
 
-
     def extract_treasures_sets_from_vector(self, vector):
         treasures_per_pirate = [[] for _ in range(len(self.pirate_ships))]
         for i in range(len(vector)):
@@ -199,9 +198,10 @@ class OnePieceProblem(search.Problem):
         actions.append(("wait", ship[0]))
 
         # collect treasure action
-        treasure = self.check_collect_treasure(ship, state)
-        if treasure:
-            actions.append(("collect_treasure", ship[0], treasure))
+        treasures = self.check_collect_treasure(ship, state)
+        if treasures:
+            for treasure in treasures:
+                actions.append(("collect_treasure", ship[0], treasure))
 
         # deposit treasure action
         if self.check_deposit_treasure(ship):
@@ -231,16 +231,16 @@ class OnePieceProblem(search.Problem):
         """
         :param island: tuple of the location of the island - (x, y). We assume the island has treasures on it
         :param state: the state of the game
-        :return: if there is a treasure that hasn't been collected on the island, return it. Otherwise, return
-        one of the treasures on the island
+        :return: list of treasures that are on the island and are not collected
         """
         collected = state.treasures_in_base.union(state.treasures_in_ships)
-        i = 0
-        while (island[0], island[1], i) in self.opposite_treasures:
-            if self.opposite_treasures[(island[0], island[1], i)] not in collected:
-                return self.opposite_treasures[(island[0], island[1], i)]
-            i += 1
-        return self.opposite_treasures[(island[0], island[1], 0)]
+        # i = 0
+        # while (island[0], island[1], i) in self.opposite_treasures:
+        #     if self.opposite_treasures[(island[0], island[1], i)] not in collected:
+        #         return self.opposite_treasures[(island[0], island[1], i)]
+        #     i += 1
+        return [self.opposite_treasures[(island[0], island[1], i)] for x, y, i in self.opposite_treasures if
+                (x, y) == (island[0], island[1]) and self.opposite_treasures[(x, y, i)] not in collected]
 
     def check_sail(self, action):
         """
@@ -522,9 +522,10 @@ class OnePieceProblem2(search.Problem):
         actions.append(("wait", ship[0]))
 
         # collect treasure action
-        treasure = self.check_collect_treasure(ship, state)
-        if treasure:
-            actions.append(("collect_treasure", ship[0], treasure))
+        treasures = self.check_collect_treasure(ship, state)
+        if treasures:
+            for treasure in treasures:
+                actions.append(("collect_treasure", ship[0], treasure))
 
         # deposit treasure action
         if self.check_deposit_treasure(ship):
@@ -554,16 +555,16 @@ class OnePieceProblem2(search.Problem):
         """
         :param island: tuple of the location of the island - (x, y). We assume the island has treasures on it
         :param state: the state of the game
-        :return: if there is a treasure that hasn't been collected on the island, return it. Otherwise, return
-        one of the treasures on the island
+        :return: list of treasures that are on the island and haven't been collected
         """
         collected = state.treasures_in_base.union(state.treasures_in_ships)
-        i = 0
-        while (island[0], island[1], i) in self.opposite_treasures:
-            if self.opposite_treasures[(island[0], island[1], i)] not in collected:
-                return self.opposite_treasures[(island[0], island[1], i)]
-            i += 1
-        return self.opposite_treasures[(island[0], island[1], 0)]
+        # i = 0
+        # while (island[0], island[1], i) in self.opposite_treasures:
+        #     if self.opposite_treasures[(island[0], island[1], i)] not in collected:
+        #         return self.opposite_treasures[(island[0], island[1], i)]
+        #     i += 1
+        return [self.opposite_treasures[(island[0], island[1], i)] for x, y, i in self.opposite_treasures if
+                (x, y) == (island[0], island[1]) and self.opposite_treasures[(x, y, i)] not in collected]
 
     def check_sail(self, action):
         """

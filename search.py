@@ -15,6 +15,7 @@ import math
 import random
 import sys
 import bisect
+import ex1
 
 infinity = float('inf')
 
